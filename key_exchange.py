@@ -2,14 +2,18 @@ from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 
+# generates an ECC key pair on the P-256 curve -> 128-bit security
 def generate_ecc_keypair():
 
     private_key = ec.generate_private_key(ec.SECP256R1())
     public_key = private_key.public_key()
     return private_key, public_key
 
+# signs an eph public key with the sender's identity private key (ECDSA key)
+# basically proves the key belongs to sender (prevents MITM)
 def sign_public_key(signing_private_key, public_key_to_sign):
 
+    # serializes the public key to bytes for determinism
     pub_bytes = public_key_to_sign.public_bytes(
         serialization.Encoding.X962,
         serialization.PublicFormat.UncompressedPoint
@@ -17,6 +21,7 @@ def sign_public_key(signing_private_key, public_key_to_sign):
     signature = signing_private_key.sign(pub_bytes, ec.ECDSA(hashes.SHA256()))
     return signature
 
+# checks the ECDSA signature on a given eph public key
 def verify_signature(signing_public_key, signature, received_public_key):
 
     pub_bytes = received_public_key.public_bytes(
@@ -26,11 +31,15 @@ def verify_signature(signing_public_key, signature, received_public_key):
     signing_public_key.verify(signature, pub_bytes, ec.ECDSA(hashes.SHA256()))
     return True
 
+# performs the ECDH exchange -> use our own private key and the peer's public key to get shared secret
+
 def compute_shared_secret(my_private_key, peer_public_key):
 
     shared_secret = my_private_key.exchange(ec.ECDH(), peer_public_key)
     return shared_secret
 
+# dervies a 256-bit AES key from the raw ECDH secret using HKDF
+# HKDF ensures output is uniformly random
 def derive_session_key(shared_secret, info=b"mqtt-session-key"):
 
     hkdf = HKDF(
@@ -42,24 +51,31 @@ def derive_session_key(shared_secret, info=b"mqtt-session-key"):
     session_key = hkdf.derive(shared_secret)
     return session_key
 
+# full authenticated key exchange (uses all functions above)
 def perform_full_key_exchange(name_a="Alice", name_b="Bob"):
 
+    # Step 1 -> generate identity key pairs for both parties
     id_priv_a, id_pub_a = generate_ecc_keypair()
     id_priv_b, id_pub_b = generate_ecc_keypair()
 
+    # Step 2 -> generate ephemeral key pairs (temporary keys for a given session)
     eph_priv_a, eph_pub_a = generate_ecc_keypair()
     eph_priv_b, eph_pub_b = generate_ecc_keypair()
 
+    # Step 3 -> both parties sign their ephemeral public keys with their identity key
     sig_a = sign_public_key(id_priv_a, eph_pub_a)
     sig_b = sign_public_key(id_priv_b, eph_pub_b)
 
+    # Step 4 -> each party checks the other's signature (prevents MITM)
     verify_signature(id_pub_a, sig_a, eph_pub_a)
     verify_signature(id_pub_b, sig_b, eph_pub_b)
 
+    # Step 5 -> both parties compute the ECDH shared secret independently
     secret_a = compute_shared_secret(eph_priv_a, eph_pub_b)
     secret_b = compute_shared_secret(eph_priv_b, eph_pub_a)
-    assert secret_a == secret_b, "ECDH secrets do not match"
+    assert secret_a == secret_b, "ECDH secrets do not match" # additional check to make sure both parties got the same secret
 
+    # Step 6 -> derive the AES-256 session key with HKDF
     session_key = derive_session_key(secret_a)
 
     return {
