@@ -1,7 +1,6 @@
 import struct
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
-
 class Encryptor:
 
     def __init__(self, session_key: bytes):

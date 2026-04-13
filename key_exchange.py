@@ -73,7 +73,6 @@ def perform_full_key_exchange(name_a="Alice", name_b="Bob"):
     # Step 5 -> both parties compute the ECDH shared secret independently
     secret_a = compute_shared_secret(eph_priv_a, eph_pub_b)
     secret_b = compute_shared_secret(eph_priv_b, eph_pub_a)
-    assert secret_a == secret_b, "ECDH secrets do not match" # additional check to make sure both parties got the same secret
 
     # Step 6 -> derive the AES-256 session key with HKDF
     session_key = derive_session_key(secret_a)

@@ -1,4 +1,3 @@
-import time
 import struct
 from key_exchange import perform_full_key_exchange
 from mqtt_env import Broker, Publisher, Subscriber

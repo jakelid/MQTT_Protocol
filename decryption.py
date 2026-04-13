@@ -23,7 +23,7 @@ class Decryptor:
         # Step 2 -> get counter (first 4 bytes)
         counter = struct.unpack(">I", packet[:4])[0]
 
-        # Step 3 -> check for replay attack
+        # Step 3 -> check for a replay attack in the packet
         if counter <= self._last_counter:
             msg = (f"Replay Attack detected! Counter: {counter} <= last accepted: "
                    f"{self._last_counter}.")

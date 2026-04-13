@@ -17,7 +17,7 @@ class Broker:
         self._subscriptions[topic].append(callback)
         print(f"[BROKER] New subscription to '{topic}'.")
 
-    # forwards encrypted payloads to all subscribers for a given topic
+    # forwards encrypted packets to all subscribers for a given topic
     def publish(self, topic: str, payload: bytes):
 
         print(f"\n[BROKER] Received publish on '{topic}' "
